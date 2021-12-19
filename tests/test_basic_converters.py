@@ -49,54 +49,54 @@ def options():
 
 
 def converter_load_produces_same_result(converter: IConverter, value):
-    assert converter.load(value, key=NOT_PROVIDED, options=DEFAULT_SERIALIZATION_OPTIONS) == value
+    assert converter.load(value, key=NOT_PROVIDED, context=DEFAULT_SERIALIZATION_OPTIONS) == value
 
 
 def converter_dump_produces_same_result(converter: IConverter, value):
-    assert converter.dump(value, options=DEFAULT_SERIALIZATION_OPTIONS) == value
+    assert converter.dump(value, context=DEFAULT_SERIALIZATION_OPTIONS) == value
 
 
 def converter_load_raises_load_error(converter: IConverter, value):
     with pytest.raises(LoadError):
-        assert converter.load(value, key=NOT_PROVIDED, options=DEFAULT_SERIALIZATION_OPTIONS)
+        assert converter.load(value, key=NOT_PROVIDED, context=DEFAULT_SERIALIZATION_OPTIONS)
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_exact_converter_dump(data, options: JsonSerializationContext):
     converter = ExactConverter()
-    assert converter.dump(data, options=options) == data
+    assert converter.dump(data, context=options) == data
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_exact_converter_load(data, options: JsonSerializationContext):
     converter = ExactConverter()
-    assert converter.load(data, key=NOT_PROVIDED, options=options) == data
+    assert converter.load(data, key=NOT_PROVIDED, context=options) == data
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_any_converter_dump_as_is(data, options: JsonSerializationContext):
     converter = AnyConverter(AnyLoadingPolicy.LOAD_AS_IS, AnyDumpPolicy.DUMP_AS_IS)
-    assert converter.dump(data, options=options) == data
+    assert converter.dump(data, context=options) == data
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_any_converter_load_as_is(data, options: JsonSerializationContext):
     converter = AnyConverter(AnyLoadingPolicy.LOAD_AS_IS, AnyDumpPolicy.DUMP_AS_IS)
-    assert converter.load(data, key=NOT_PROVIDED, options=options) == data
+    assert converter.load(data, key=NOT_PROVIDED, context=options) == data
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_any_converter_load_raises_if_any_load_raise_enabled(data, options: JsonSerializationContext):
     converter = AnyConverter(AnyLoadingPolicy.RAISE_ERROR, AnyDumpPolicy.DUMP_AS_IS)
     with pytest.raises(TypeError):
-        converter.load(data, key=NOT_PROVIDED, options=options)
+        converter.load(data, key=NOT_PROVIDED, context=options)
 
 
 @pytest.mark.parametrize('data', DIFFERENT_TYPED_DATA)
 def test_any_converter_dump_raises_if_any_dump_raise_enabled(data, options: JsonSerializationContext):
     converter = AnyConverter(AnyLoadingPolicy.LOAD_AS_IS, AnyDumpPolicy.RAISE_ERROR)
     with pytest.raises(TypeError):
-        converter.dump(data, options=options)
+        converter.dump(data, context=options)
 
 
 @pytest.mark.parametrize('s', VALID_STRING_VALUES)
@@ -131,7 +131,7 @@ def test_primitive_string_converter_load_raises_if_invalid_type(s):
 ])
 def test_primitive_number_converter_load_as_int(x, expected: int, options: JsonSerializationContext):
     int_converter = PrimitiveTypeConverter(int, float)
-    assert int_converter.load(x, key=NOT_PROVIDED, options=options) == expected
+    assert int_converter.load(x, key=NOT_PROVIDED, context=options) == expected
 
 
 @pytest.mark.parametrize('x,expected', [
@@ -144,7 +144,7 @@ def test_primitive_number_converter_load_as_int(x, expected: int, options: JsonS
 ])
 def test_primitive_number_converter_load_as_float(x, expected: float, options: JsonSerializationContext):
     float_converter = PrimitiveTypeConverter(float, int)
-    assert float_converter.load(x, key=NOT_PROVIDED, options=options) == expected
+    assert float_converter.load(x, key=NOT_PROVIDED, context=options) == expected
 
 
 @pytest.mark.parametrize('value', [[], list(DIFFERENT_TYPED_DATA)])
@@ -201,7 +201,7 @@ def test_dict_converter_raises_if_item_converter_raises():
 ])
 def test_set_converter_load(value, expected, options: JsonSerializationContext):
     converter = SetConverter(ExactConverter())
-    assert converter.load(value, key=NOT_PROVIDED, options=options) == expected
+    assert converter.load(value, key=NOT_PROVIDED, context=options) == expected
 
 
 @pytest.mark.parametrize('value,expected', [
@@ -213,7 +213,7 @@ def test_set_converter_load(value, expected, options: JsonSerializationContext):
 def test_set_converter_dump(value, expected, options: JsonSerializationContext):
     converter = SetConverter(ExactConverter())
     # Order-invariant collection equality check
-    assert Counter(converter.dump(value, options=options)) == Counter(expected)
+    assert Counter(converter.dump(value, context=options)) == Counter(expected)
 
 
 def test_set_converter_raises_if_item_converter_raises():
@@ -232,7 +232,7 @@ def test_set_converter_raises_if_item_converter_raises():
 ])
 def test_tuple_converter_load(types, value, expected, options: JsonSerializationContext):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
-    assert converter.load(value, key=NOT_PROVIDED, options=options) == expected
+    assert converter.load(value, key=NOT_PROVIDED, context=options) == expected
 
 
 @pytest.mark.parametrize('types,value,expected', [
@@ -244,7 +244,7 @@ def test_tuple_converter_load(types, value, expected, options: JsonSerialization
 def test_tuple_converter_dump(types, value, expected, options: JsonSerializationContext):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
     # Order-invariant collection equality check
-    assert Counter(converter.dump(value, options=options)) == Counter(expected)
+    assert Counter(converter.dump(value, context=options)) == Counter(expected)
 
 
 @pytest.mark.parametrize('types,value', [
@@ -256,7 +256,7 @@ def test_tuple_converter_dump(types, value, expected, options: JsonSerialization
 def test_tuple_converter_raises_on_load(types, value, options: JsonSerializationContext):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
     with pytest.raises(LoadError):
-        converter.load(value, key=NOT_PROVIDED, options=options)
+        converter.load(value, key=NOT_PROVIDED, context=options)
 
 
 @pytest.mark.parametrize('value', [0, 1, True, False])
@@ -265,7 +265,7 @@ def test_union_converter_load(value, options: JsonSerializationContext):
         PrimitiveTypeConverter(int),
         PrimitiveTypeConverter(bool),
     )
-    assert converter.load(value, key=NOT_PROVIDED, options=options) == value
+    assert converter.load(value, key=NOT_PROVIDED, context=options) == value
 
 
 @pytest.mark.parametrize('value', [0, 1, True, False])
@@ -274,7 +274,7 @@ def test_union_converter_dump(value, options: JsonSerializationContext):
         PrimitiveTypeConverter(int),
         PrimitiveTypeConverter(bool),
     )
-    assert converter.dump(value, options=options) == value
+    assert converter.dump(value, context=options) == value
 
 
 @pytest.mark.parametrize('value,expected', [
@@ -290,7 +290,7 @@ def test_union_converter_load_first_suitable(value, expected, options: JsonSeria
         PrimitiveTypeConverter(bool),
         PrimitiveTypeConverter(str),
     )
-    assert converter.load(value, key=NOT_PROVIDED, options=options) == expected
+    assert converter.load(value, key=NOT_PROVIDED, context=options) == expected
 
 
 def test_union_converter_raises_if_no_converter_matches(options: JsonSerializationContext):
@@ -299,7 +299,7 @@ def test_union_converter_raises_if_no_converter_matches(options: JsonSerializati
         PrimitiveTypeConverter(bool)
     )
     with pytest.raises(LoadError):
-        converter.load('non an or bool', key=NOT_PROVIDED, options=options)
+        converter.load('non an or bool', key=NOT_PROVIDED, context=options)
 
 
 @pytest.mark.parametrize('value', [True, 'foo'])
@@ -315,7 +315,7 @@ def test_union_converter_not_raises_if_no_converter_matches_in_first_nested_unio
             PrimitiveTypeConverter(str)
         )
     )
-    assert converter.load(value, key=NOT_PROVIDED, options=options) == value
+    assert converter.load(value, key=NOT_PROVIDED, context=options) == value
 
 
 def test_union_as_optional_converter(options: JsonSerializationContext):
@@ -323,7 +323,7 @@ def test_union_as_optional_converter(options: JsonSerializationContext):
         PrimitiveTypeConverter(int),
         NoneConverter()
     )
-    assert converter.load(None, key=NOT_PROVIDED, options=options) is None
+    assert converter.load(None, key=NOT_PROVIDED, context=options) is None
 
 
 def test_union_as_optional_converter_raises_if_no_match(options: JsonSerializationContext):
@@ -332,7 +332,7 @@ def test_union_as_optional_converter_raises_if_no_match(options: JsonSerializati
         NoneConverter()
     )
     with pytest.raises(LoadError):
-        converter.load('non int', key=NOT_PROVIDED, options=options)
+        converter.load('non int', key=NOT_PROVIDED, context=options)
 
 
 def test_datetime_isoconverter_load(options: JsonSerializationContext):
@@ -340,7 +340,7 @@ def test_datetime_isoconverter_load(options: JsonSerializationContext):
     # value = 1611429688.704779
     expected = datetime.datetime(2021, 1, 23, 19, 21, 28, 704779)
     converter = DatetimeTimestampConverter()
-    assert converter.load(expected.timestamp(), key=NOT_PROVIDED, options=options) == expected
+    assert converter.load(expected.timestamp(), key=NOT_PROVIDED, context=options) == expected
 
 
 def test_datetime_isoconverter_dump(options: JsonSerializationContext):
@@ -348,14 +348,14 @@ def test_datetime_isoconverter_dump(options: JsonSerializationContext):
     value = datetime.datetime(2021, 1, 23, 19, 21, 28, 704779)
     # expected = 1611429688.704779
     converter = DatetimeTimestampConverter()
-    assert converter.dump(value, options=options) == value.timestamp()
+    assert converter.dump(value, context=options) == value.timestamp()
 
 
 def test_datetime_isoconverter_load_raises_if_invalid_format(options: JsonSerializationContext):
     value = '2021.01.23'
     converter = DatetimeTimestampConverter()
     with pytest.raises(LoadError):
-        assert converter.load(value, key=NOT_PROVIDED, options=options)
+        assert converter.load(value, key=NOT_PROVIDED, context=options)
 
 
 class _ExampleEnum(enum.Enum):
@@ -395,7 +395,7 @@ class _ExampleIntFlag(enum.IntFlag):
 ])
 def test_enum_load(options: JsonSerializationContext, enum_type, value, expected):
     converter = EnumConverter(enum_type)
-    value = converter.load(value, key=NOT_PROVIDED, options=options)
+    value = converter.load(value, key=NOT_PROVIDED, context=options)
     assert value == expected
     assert isinstance(value, enum_type)
 
@@ -414,7 +414,7 @@ def test_enum_load(options: JsonSerializationContext, enum_type, value, expected
 ])
 def test_enum_dump(options: JsonSerializationContext, enum_type, value, expected):
     converter = EnumConverter(enum_type)
-    assert converter.dump(value, options=options) == expected
+    assert converter.dump(value, context=options) == expected
 
 
 @pytest.mark.parametrize('enum_type', [
@@ -425,4 +425,4 @@ def test_enum_converter_LoadError_if_invalid_value(options: JsonSerializationCon
     value = 'this is non valid value'
     converter = EnumConverter(enum_type)
     with pytest.raises(LoadError):
-        assert converter.load(value, key=NOT_PROVIDED, options=options)
+        assert converter.load(value, key=NOT_PROVIDED, context=options)

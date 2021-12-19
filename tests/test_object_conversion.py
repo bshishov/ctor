@@ -29,12 +29,12 @@ class EmptyClass:
 
 def test_load_empty_object(converter_factory, options):
     converter = converter_factory(EmptyClass, options)
-    assert isinstance(converter.load({}, key=ctor.NOT_PROVIDED, options=options), EmptyClass)
+    assert isinstance(converter.load({}, key=ctor.NOT_PROVIDED, context=options), EmptyClass)
 
 
 def test_dump_empty_object(converter_factory, options):
     converter = converter_factory(EmptyClass, options)
-    assert converter.dump(EmptyClass(), options=options) == {}
+    assert converter.dump(EmptyClass(), context=options) == {}
 
 
 @dataclass
@@ -96,7 +96,7 @@ def discriminated_converter_factory() -> ctor.DiscriminatedConverterFactory:
 ])
 def test_discriminated_union_class_load(data, expected, discriminated_converter_factory, options):
     options.converter_factories.insert(0, discriminated_converter_factory)
-    obj = ctor.load(ClassWithDiscriminatedUnionAttr, data=data, options=options)
+    obj = ctor.load(ClassWithDiscriminatedUnionAttr, data=data, context=options)
     assert obj.attr == expected
 
 
@@ -119,7 +119,7 @@ def test_discriminated_union_class_load(data, expected, discriminated_converter_
 ])
 def test_load_class(cls, data, expected, converter_factory, options):
     converter = converter_factory(cls, options)
-    obj = converter.load(data, key=ctor.NOT_PROVIDED, options=options)
+    obj = converter.load(data, key=ctor.NOT_PROVIDED, context=options)
     assert obj == expected
 
 
@@ -142,7 +142,7 @@ def test_load_class(cls, data, expected, converter_factory, options):
 def test_load_invalid_class_raises(cls, data, converter_factory, options):
     converter = converter_factory(cls, options)
     with pytest.raises(ctor.LoadError):
-        converter.load(data, key=ctor.NOT_PROVIDED, options=options)
+        converter.load(data, key=ctor.NOT_PROVIDED, context=options)
 
 
 @pytest.mark.parametrize('cls,data,expected', [
@@ -158,7 +158,7 @@ def test_load_invalid_class_raises(cls, data, converter_factory, options):
 ])
 def test_dump_class(cls, data, expected, converter_factory, options):
     converter = converter_factory(cls, options)
-    obj = converter.dump(data, options=options)
+    obj = converter.dump(data, context=options)
     assert obj == expected
 
 
@@ -186,19 +186,19 @@ class AttrsWithOptionalObjAttrFactory:
 
 
 def test_load_obj_with_optional_attr_factory(options: ctor.JsonSerializationContext):
-    obj = ctor.load(AttrsWithOptionalAttrFactory, {}, key=ctor.NOT_PROVIDED, options=options)
+    obj = ctor.load(AttrsWithOptionalAttrFactory, {}, key=ctor.NOT_PROVIDED, context=options)
     assert obj == AttrsWithOptionalAttrFactory()
     assert obj.attr == 42
 
 
 def test_load_obj_with_obj_optional_attr_factory(options: ctor.JsonSerializationContext):
-    obj = ctor.load(AttrsWithOptionalObjAttrFactory, {}, key=ctor.NOT_PROVIDED, options=options)
+    obj = ctor.load(AttrsWithOptionalObjAttrFactory, {}, key=ctor.NOT_PROVIDED, context=options)
     assert obj == AttrsWithOptionalObjAttrFactory()
     assert obj.attr == ClassWithIntAttr(42)
 
 
 def test_load_obj_with_attr_factory(options: ctor.JsonSerializationContext):
-    obj = ctor.load(AttrsWithAttrFactory, {}, key=ctor.NOT_PROVIDED, options=options)
+    obj = ctor.load(AttrsWithAttrFactory, {}, key=ctor.NOT_PROVIDED, context=options)
     assert obj == AttrsWithAttrFactory()
     assert obj.attr == 42
 
@@ -209,12 +209,12 @@ class ClassWithOptionalAny:
 
 
 def test_load_obj_with_optional_any_default(options: ctor.JsonSerializationContext):
-    obj = ctor.load(ClassWithOptionalAny, {}, key=ctor.NOT_PROVIDED, options=options)
+    obj = ctor.load(ClassWithOptionalAny, {}, key=ctor.NOT_PROVIDED, context=options)
     assert obj == ClassWithOptionalAny()
 
 
 def test_load_obj_with_optional_any(options: ctor.JsonSerializationContext):
-    obj = ctor.load(ClassWithOptionalAny, {'attr': 'not default'}, key=ctor.NOT_PROVIDED, options=options)
+    obj = ctor.load(ClassWithOptionalAny, {'attr': 'not default'}, key=ctor.NOT_PROVIDED, context=options)
     assert obj == ClassWithOptionalAny('not default')
 
 
@@ -275,11 +275,11 @@ class AnyDummy:
 
 def test_any_dump(options: ctor.JsonSerializationContext):
     obj = AnyDummy(foo=[1, 'hello', {}])
-    data = ctor.dump(obj, options=options)
+    data = ctor.dump(obj, context=options)
     assert data == {'foo': [1, 'hello', {}]}
 
 
 def test_any_load(options: ctor.JsonSerializationContext):
     data = {'foo': [1, 'hello', {}]}
-    obj = ctor.load(AnyDummy, data, options=options)
+    obj = ctor.load(AnyDummy, data, context=options)
     assert obj.foo == [1, 'hello', {}]

@@ -66,10 +66,10 @@ class ISerializationContext(metaclass=ABCMeta):
 
 class IConverter(metaclass=ABCMeta):
     @abstractmethod
-    def dump(self, obj: Any, options: ISerializationContext) -> Any: ...
+    def dump(self, obj: Any, context: ISerializationContext) -> Any: ...
 
     @abstractmethod
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any: ...
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any: ...
 
 
 class IConverterFactory(metaclass=ABCMeta):
@@ -77,13 +77,13 @@ class IConverterFactory(metaclass=ABCMeta):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]: ...
 
 
 class IProvider(metaclass=ABCMeta):
     @abstractmethod
-    def provide(self, options: ISerializationContext) -> Any: ...
+    def provide(self, context: ISerializationContext) -> Any: ...
 
 
 class IProviderFactory(metaclass=ABCMeta):
@@ -91,4 +91,4 @@ class IProviderFactory(metaclass=ABCMeta):
     def can_provide(self, typ: TypeOrCallable) -> bool: ...
 
     @abstractmethod
-    def create_provider(self, typ: TypeOrCallable, options: ISerializationContext) -> IProvider: ...
+    def create_provider(self, typ: TypeOrCallable, context: ISerializationContext) -> IProvider: ...

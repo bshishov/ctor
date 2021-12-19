@@ -173,18 +173,18 @@ class Extras:
 
 
 class ExactConverter(IConverter):
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         return data
 
 
 class DatetimeTimestampConverter(IConverter):
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj.timestamp()
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         try:
             return datetime.fromtimestamp(data)
         except (TypeError, ValueError) as e:
@@ -260,7 +260,7 @@ class ObjectConverter(IConverter):
             if a.extras:
                 self._extra_attributes.add(a.name)
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if data is None:
             raise LoadError(
                 ErrorInfo(
@@ -284,7 +284,7 @@ class ObjectConverter(IConverter):
             raw_value = lookup_dict(data, attr.data_key, *attr.aliases)
             if raw_value is not NOT_PROVIDED and attr.converter is not None:
                 try:
-                    value = attr.converter.load(raw_value, attr.name, options)
+                    value = attr.converter.load(raw_value, attr.name, context)
                 except LoadError as e:
                     e.info = ErrorInfo(
                         message=f"Failed to load object attribute {attr.name}",
@@ -294,7 +294,7 @@ class ObjectConverter(IConverter):
                     )
                     raise
             elif attr.provider:
-                value = attr.provider.provide(options)
+                value = attr.provider.provide(context)
             elif attr.inject_key and key is not NOT_PROVIDED:
                 value = key
             else:
@@ -332,7 +332,7 @@ class ObjectConverter(IConverter):
                 )
             ).with_traceback(e.__traceback__)
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         if obj is None:
             raise DumpError(
                 ErrorInfo(
@@ -351,7 +351,7 @@ class ObjectConverter(IConverter):
             if value is NOT_PROVIDED:
                 continue
             try:
-                raw_value = attr.converter.dump(value, options)
+                raw_value = attr.converter.dump(value, context)
             except DumpError as e:
                 e.info = ErrorInfo(
                     message=f"Failed to dump object attr {obj!r}",
@@ -370,7 +370,7 @@ class ObjectConverter(IConverter):
 def build_attr_definition(
         param_name: str,
         param_type: TypeOrCallable,
-        options: ISerializationContext
+        context: ISerializationContext
 ) -> AttributeDefinition:
     aliases = set()
     is_extras = False
@@ -393,10 +393,10 @@ def build_attr_definition(
             getter = annotation.get_value
 
     getter = getter or (lambda o: getattr(o, param_name, NOT_PROVIDED))
-    provider = provider or options.get_provider(param_type)
+    provider = provider or context.get_provider(param_type)
 
     if not provider:
-        converter = converter or options.get_converter(param_type)
+        converter = converter or context.get_converter(param_type)
 
     return AttributeDefinition(
         name=param_name,
@@ -424,16 +424,16 @@ class DiscriminatedConverter(IConverter):
             self.load_map[discriminator_value] = converter
             self.dump_map[typ] = (discriminator_value, converter)
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         tp = type(obj)
         try:
             discriminator_value, converter = self.dump_map[tp]
         except KeyError:
             raise TypeError(f'Cannot dump object {obj}. '
                             f'Cant determine discriminator value for type: {tp}')
-        return {**converter.dump(obj, options), self.discriminator_key: discriminator_value}
+        return {**converter.dump(obj, context), self.discriminator_key: discriminator_value}
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if data is None:
             data = {}
         discriminator_value = data.get(self.discriminator_key)
@@ -441,7 +441,7 @@ class DiscriminatedConverter(IConverter):
             raise TypeError(f'No registered converter found for discriminator '
                             f'{self.discriminator_key}={discriminator_value}')
         converter = self.load_map[discriminator_value]
-        return converter.load(data, key, options)
+        return converter.load(data, key, context)
 
 
 class ObjectConverterFactory(IConverterFactory):
@@ -458,7 +458,7 @@ class ObjectConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not isclass(tp) and not isfunction(tp):
             return None
@@ -489,7 +489,7 @@ class ObjectConverterFactory(IConverterFactory):
 
             param_type = eval_type(param_type, globals(), sys.modules[tp.__module__].__dict__)
             type_hints[param_name] = param_type
-            definitions.append(build_attr_definition(param_name, param_type, options))
+            definitions.append(build_attr_definition(param_name, param_type, context))
 
         return ObjectConverter(
             attributes=definitions,
@@ -514,14 +514,14 @@ class DiscriminatedConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if tp not in self.discriminator_type_map.values():
             return None
 
         converters = []
         for discriminator, tp in self.discriminator_type_map.items():
-            converter = self.converter_factory.try_create_converter(tp, options)
+            converter = self.converter_factory.try_create_converter(tp, context)
             converters.append((discriminator, tp, converter))
         return DiscriminatedConverter(converters, discriminator_key=self.discriminator_key)
 
@@ -532,10 +532,10 @@ class ListConverter(IConverter):
     def __init__(self, item_converter: IConverter):
         self.item_converter = item_converter
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
-        return [self.item_converter.dump(v, options) for v in obj]
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
+        return [self.item_converter.dump(v, context) for v in obj]
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if data is None:
             raise LoadError(
                 ErrorInfo(
@@ -547,7 +547,7 @@ class ListConverter(IConverter):
 
         def _try_load(value, index):
             try:
-                return self.item_converter.load(value, index, options)
+                return self.item_converter.load(value, index, context)
             except LoadError as e:
                 e.info = ErrorInfo(
                     message="Failed to load list",
@@ -573,11 +573,11 @@ class SetConverter(IConverter):
     def __init__(self, item_converter: IConverter):
         self.item_converter = item_converter
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
-        return [self.item_converter.dump(v, options) for v in obj]
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
+        return [self.item_converter.dump(v, context) for v in obj]
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
-        return {self.item_converter.load(value, index, options) for index, value in enumerate(data)}
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
+        return {self.item_converter.load(value, index, context) for index, value in enumerate(data)}
 
 
 class DictConverter(IConverter):
@@ -586,13 +586,13 @@ class DictConverter(IConverter):
     def __init__(self, value_converter: IConverter):
         self.value_converter = value_converter
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
-        return {k: self.value_converter.dump(v, options) for k, v in obj.items()}
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
+        return {k: self.value_converter.dump(v, context) for k, v in obj.items()}
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         def _try_load(value, k):
             try:
-                return self.value_converter.load(value, k, options)
+                return self.value_converter.load(value, k, context)
             except LoadError as e:
                 e.info = ErrorInfo(
                     message="Failed to load dict",
@@ -618,14 +618,14 @@ class TupleConverter(IConverter):
     def __init__(self, *converters: IConverter):
         self.converters = converters
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return [
-            converter.dump(value, options)
+            converter.dump(value, context)
             for converter, value
             in zip(self.converters, obj)
         ]
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if len(self.converters) != len(data):
             raise LoadError(
                 ErrorInfo(
@@ -635,7 +635,7 @@ class TupleConverter(IConverter):
                 )
             )
         return tuple(
-            converter.load(value, key=i, options=options)
+            converter.load(value, key=i, context=context)
             for i, (converter, value)
             in enumerate(zip(self.converters, data))
         )
@@ -648,17 +648,14 @@ class AnyConverter(IConverter):
         self.any_load_policy = any_load_policy
         self.any_dump_policy = any_dump_policy
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         if self.any_dump_policy == AnyDumpPolicy.RAISE_ERROR:
             raise TypeError('Cannot dump "Any" type. Make sure you specified types correctly.')
         elif self.any_dump_policy == AnyDumpPolicy.DUMP_AS_IS:
             return obj
         raise RuntimeError(f'Unknown AnyDumpPolicy: {self.any_dump_policy}')
-        # Get converter of object at runtime
-        # converter = options.get_converter(type(obj))
-        # return converter.dump(obj, options)
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if self.any_load_policy == AnyLoadingPolicy.RAISE_ERROR:
             raise TypeError('Loading Any type is restricted')
         elif self.any_load_policy == AnyLoadingPolicy.LOAD_AS_IS:
@@ -670,14 +667,14 @@ class ListConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not is_subclass(tp, Sequence):
             return None
         args = get_args(tp)
         if args:
             item_type = args[0]
-            item_converter = options.get_converter(item_type)
+            item_converter = context.get_converter(item_type)
             return ListConverter(item_converter)
         return None
 
@@ -686,7 +683,7 @@ class TupleConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not is_subclass(tp, Tuple):
             return None
@@ -695,7 +692,7 @@ class TupleConverterFactory(IConverterFactory):
         if args:
             converters = []
             for arg in args:
-                converters.append(options.get_converter(arg))
+                converters.append(context.get_converter(arg))
             return TupleConverter(*converters)
         raise TypeError(f'Non-generic Tuple expected, got {tp}')
 
@@ -704,7 +701,7 @@ class SetConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not is_subclass(tp, AbstractSet):
             return None
@@ -712,7 +709,7 @@ class SetConverterFactory(IConverterFactory):
         args = get_args(tp)
         if args:
             item_type = args[0]
-            item_converter = options.get_converter(item_type)
+            item_converter = context.get_converter(item_type)
             return SetConverter(item_converter)
         raise TypeError(f'Non-generic type expected, got {tp}')
 
@@ -721,7 +718,7 @@ class DictConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not is_subclass(tp, Mapping):
             return None
@@ -729,7 +726,7 @@ class DictConverterFactory(IConverterFactory):
         args = get_args(tp)
         if args:
             value_type = args[1]  # e.g. typing.Dict[str, T]
-            value_converter = options.get_converter(value_type)
+            value_converter = context.get_converter(value_type)
             return DictConverter(value_converter)
         raise TypeError(f'Non-generic type expected, got {tp}')
 
@@ -740,11 +737,11 @@ class UnionTypeConverter(IConverter):
     def __init__(self, *converters: IConverter):
         self.converters = converters
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         errors = []
         for converter in self.converters:
             try:
-                return converter.dump(obj, options)
+                return converter.dump(obj, context)
             except DumpError as e:
                 errors.append(e.info)
                 pass
@@ -757,11 +754,11 @@ class UnionTypeConverter(IConverter):
             )
         )
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         errors = []
         for converter in self.converters:
             try:
-                return converter.load(data, key, options)
+                return converter.load(data, key, context)
             except LoadError as e:
                 errors.append(e.info)
 
@@ -779,7 +776,7 @@ class UnionTypeConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if not get_origin(tp) == Union:
             return None
@@ -788,7 +785,7 @@ class UnionTypeConverterFactory(IConverterFactory):
         if args:
             converters = []
             for arg in args:
-                converters.append(options.get_converter(arg))
+                converters.append(context.get_converter(arg))
             return UnionTypeConverter(*converters)
 
         return None
@@ -798,7 +795,7 @@ class EnumConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if isinstance(tp, EnumMeta):
             return EnumConverter(tp)
@@ -811,10 +808,10 @@ class EnumConverter(IConverter):
     def __init__(self, enum_class: EnumMeta):
         self.enum_class = enum_class
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj.value
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         try:
             return self.enum_class(data)
         except ValueError as err:
@@ -825,7 +822,7 @@ class LiteralConverterFactory(IConverterFactory):
     def try_create_converter(
             self,
             tp: TypeOrCallable,
-            options: ISerializationContext
+            context: ISerializationContext
     ) -> Optional[IConverter]:
         if get_origin(tp) is Literal:
             value = get_args(tp)[0]
@@ -837,10 +834,10 @@ class LiteralConverter(IConverter):
     def __init__(self, value: Any):
         self._value = value
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if data != self._value:
             raise LoadError(
                 ErrorInfo(
@@ -859,10 +856,10 @@ class PrimitiveTypeConverter(IConverter):
         self.tp = tp
         self.fallback = fallback
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if isinstance(data, self.tp):
             return data
 
@@ -873,10 +870,10 @@ class PrimitiveTypeConverter(IConverter):
 
 
 class NoneConverter(IConverter):
-    def dump(self, obj: None, options: ISerializationContext) -> None:
+    def dump(self, obj: None, context: ISerializationContext) -> None:
         return obj
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> None:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> None:
         if data is not None:
             raise LoadError(ErrorInfo.invalid_type(expected=type(None), actual=type(data), target=str(key)))
         return None
@@ -889,10 +886,10 @@ class BytesConverter(IConverter):
         self.encoding = encoding
         self.errors = errors
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
         return obj.decode(encoding=self.encoding, errors=self.errors)
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
         if isinstance(data, str):
             return bytes(data, encoding=self.encoding)
         raise LoadError(ErrorInfo.invalid_type(expected=str, actual=type(data), target=str(key)))
@@ -989,24 +986,24 @@ class _ProxyConverter(IConverter):
     def __init__(self, tp: TypeOrCallable):
         self.tp = tp
 
-    def dump(self, obj: Any, options: ISerializationContext) -> Any:
-        converter = options.get_converter(self.tp)
+    def dump(self, obj: Any, context: ISerializationContext) -> Any:
+        converter = context.get_converter(self.tp)
         setattr(self, 'dump', converter.dump)  # method replacement
-        return converter.dump(obj, options)
+        return converter.dump(obj, context)
 
-    def load(self, data: Any, key: Any, options: ISerializationContext) -> Any:
-        converter = options.get_converter(self.tp)
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any:
+        converter = context.get_converter(self.tp)
         setattr(self, 'load', converter.load)  # method replacement
-        return converter.load(data, key, options)
+        return converter.load(data, key, context)
 
 
 # Default serialization context
 _JSON_CONTEXT: ISerializationContext = JsonSerializationContext()
 
 
-def dump(obj: Any, options: ISerializationContext = _JSON_CONTEXT) -> Any:
-    converter = options.get_converter(type(obj))
-    return converter.dump(obj, options)
+def dump(obj: Any, context: ISerializationContext = _JSON_CONTEXT) -> Any:
+    converter = context.get_converter(type(obj))
+    return converter.dump(obj, context)
 
 
 def load(
@@ -1014,7 +1011,7 @@ def load(
         data: Any,
         *,
         key: Any = NOT_PROVIDED,
-        options: ISerializationContext = _JSON_CONTEXT
+        context: ISerializationContext = _JSON_CONTEXT
 ) -> Any:
-    converter = options.get_converter(typ)
-    return converter.load(data, key=key, options=options)
+    converter = context.get_converter(typ)
+    return converter.load(data, key=key, context=context)
