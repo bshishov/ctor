@@ -1,42 +1,30 @@
 import typing
+import sys
 
 __all__ = [
-    "UNSUPPORTED",
-    "Annotated",
-    "Literal",
     "ForwardRef",
     "eval_type",
     "get_origin",
     "is_subclass",
-    "strip_annotated",
     "get_args",
+    "strip_annotated",
+    "annotate",
 ]
 
 
-# Special variable to test if specific type from future python is unsupported
-UNSUPPORTED = typing.NewType("UNSUPPORTED", typing.NoReturn)
-
-
-try:
-    # Starting from python 3.9+
+if sys.version_info >= (3, 9):
     from typing import Annotated
-except ImportError:
-    # Backport for older python versions
-    try:
-        from typing_extensions import Annotated  # type: ignore
-    except ImportError:
-        Annotated = UNSUPPORTED
 
-
-try:
-    # Starting from python 3.8+
-    from typing import Literal
-except ImportError:
+    _ANNOTATED_SUPPORTED = True
+else:
     try:
         # Backport for older python versions
-        from typing_extensions import Literal  # type: ignore
+        # noinspection PyUnresolvedReferences
+        from typing_extensions import Annotated
+
+        _ANNOTATED_SUPPORTED = True
     except ImportError:
-        Literal = UNSUPPORTED
+        _ANNOTATED_SUPPORTED = False
 
 
 # Dynamic forward ref imports / declarations
@@ -51,7 +39,7 @@ elif hasattr(typing, "_ForwardRef"):
     # Python 3.5, 3.6
     ForwardRef = getattr(typing, "_ForwardRef")
 else:
-    raise ImportError('typing.ForwardRef is not supported')
+    raise ImportError("typing.ForwardRef is not supported")
 
 
 # Evaluates meta types recursively including ForwardRef
@@ -94,7 +82,9 @@ def get_args(tp: typing.Any) -> typing.Tuple[typing.Any, ...]:
         get_args(Callable[[], T][int]) == ([], int)
 
     """
-    return getattr(tp, "__args__", tuple())
+    if hasattr(tp, "__args__"):
+        return tp.__args__  # type: ignore
+    return tuple()
 
 
 def is_subclass(left: typing.Any, right: type) -> bool:
@@ -117,13 +107,60 @@ def is_subclass(left: typing.Any, right: type) -> bool:
         return False
 
 
-if Annotated is UNSUPPORTED:
-    def strip_annotated(tp) -> typing.Tuple[typing.Any, typing.Tuple[typing.Any, ...]]:
-        return tp, ()
-else:
-    def strip_annotated(tp) -> typing.Tuple[typing.Any, typing.Tuple[typing.Any, ...]]:
-        if hasattr(tp, '__metadata__') and hasattr(tp, '__origin__'):
+if _ANNOTATED_SUPPORTED:
+
+    def strip_annotated(
+        tp: typing.Any,
+    ) -> typing.Tuple[typing.Any, typing.Tuple[typing.Any, ...]]:
+        if hasattr(tp, "__metadata__") and hasattr(tp, "__origin__"):
             if tp.__origin__ is Annotated:
                 return tp.__args__[0], tp.__metadata__
             return tp.__origin__, tp.__metadata__
         return tp, ()
+
+    def annotate(
+        attr: str, *annotations: typing.Any, init: bool = True
+    ) -> typing.Callable[..., typing.Callable[..., typing.Any]]:
+        """Annotates arguments of a callable with `annotations`.
+
+        Annotation is based on special Annotated type-hint, introduced in PEP-593.
+        Annotated was first introduced in python 3.9. In older version (3.6+) it is available
+        via backport version in typing_extensions.
+
+        This decorator allows usage of Annotated type-hints in older versions. Please use
+        true Annotated if possible.
+
+        If the decorator is used against class - an __init__ method would be annotated
+        """
+
+        from inspect import unwrap
+
+        def _annotate(o: typing.Callable[..., typing.Any]) -> None:
+            o = unwrap(o)
+            hints = getattr(o, "__annotations__", {})
+
+            # noinspection PyTypeHints
+            hints[attr] = Annotated[(hints.get(attr, typing.Any), *annotations)]
+            o.__annotations__ = hints
+
+        def _decorator(
+            fn_or_cls: typing.Callable[..., typing.Any]
+        ) -> typing.Callable[..., typing.Any]:
+            _annotate(fn_or_cls)
+            if isinstance(fn_or_cls, type) and init and hasattr(fn_or_cls, "__init__"):
+                _annotate(getattr(fn_or_cls, "__init__"))
+            return fn_or_cls
+
+        return _decorator
+
+else:
+
+    def strip_annotated(
+        tp: typing.Any,
+    ) -> typing.Tuple[typing.Any, typing.Tuple[typing.Any, ...]]:
+        return tp, ()
+
+    def annotate(
+        attr: str, *annotations: typing.Any, init: bool = True
+    ) -> typing.Callable[..., typing.Callable[..., typing.Any]]:
+        raise RuntimeError("Annotations are not supported")

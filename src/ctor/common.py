@@ -1,10 +1,4 @@
-from typing import (
-    TypeVar,
-    Type,
-    Union,
-    Optional,
-    Any
-)
+from typing import TypeVar, Type, Union, Optional, Any, Callable, Generic
 
 from abc import abstractmethod, ABCMeta
 
@@ -21,7 +15,7 @@ __all__ = [
 
 
 class NotProvided:
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return isinstance(other, NotProvided)
 
     def __bool__(self) -> bool:
@@ -43,52 +37,52 @@ class NotProvided:
 NOT_PROVIDED = NotProvided()
 
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
-try:
-    from typing import Protocol
-
-    class KwargsCallable(Protocol):
-        def __call__(self, **kwargs: Any) -> T: ...
-
-    TypeOrCallable = Union[Type[Any], KwargsCallable]
-except ImportError:
-    TypeOrCallable = Type[Any]
+TypeOrCallable = Union[Type[_T], Callable[..., _T]]
 
 
 class ISerializationContext(metaclass=ABCMeta):
     @abstractmethod
-    def get_provider(self, tp: TypeOrCallable) -> Optional['IProvider']: ...
+    def get_provider(self, tp: TypeOrCallable[_T]) -> Optional["IProvider[_T]"]:
+        ...
 
     @abstractmethod
-    def get_converter(self, tp: TypeOrCallable) -> 'IConverter': ...
+    def get_converter(self, tp: TypeOrCallable[_T]) -> "IConverter[_T]":
+        ...
 
 
-class IConverter(metaclass=ABCMeta):
+class IConverter(Generic[_T], metaclass=ABCMeta):
     @abstractmethod
-    def dump(self, obj: Any, context: ISerializationContext) -> Any: ...
+    def dump(self, obj: _T, context: ISerializationContext) -> Any:
+        ...
 
     @abstractmethod
-    def load(self, data: Any, key: Any, context: ISerializationContext) -> Any: ...
+    def load(self, data: Any, key: Any, context: ISerializationContext) -> _T:
+        ...
 
 
-class IConverterFactory(metaclass=ABCMeta):
+class IConverterFactory(Generic[_T], metaclass=ABCMeta):
     @abstractmethod
     def try_create_converter(
-            self,
-            tp: TypeOrCallable,
-            context: ISerializationContext
-    ) -> Optional[IConverter]: ...
+        self, tp: TypeOrCallable[Any], context: ISerializationContext
+    ) -> Optional[IConverter[_T]]:
+        ...
 
 
-class IProvider(metaclass=ABCMeta):
+class IProvider(Generic[_T], metaclass=ABCMeta):
     @abstractmethod
-    def provide(self, context: ISerializationContext) -> Any: ...
+    def provide(self, context: ISerializationContext) -> _T:
+        ...
 
 
-class IProviderFactory(metaclass=ABCMeta):
+class IProviderFactory(Generic[_T], metaclass=ABCMeta):
     @abstractmethod
-    def can_provide(self, typ: TypeOrCallable) -> bool: ...
+    def can_provide(self, typ: TypeOrCallable[_T]) -> bool:
+        ...
 
     @abstractmethod
-    def create_provider(self, typ: TypeOrCallable, context: ISerializationContext) -> IProvider: ...
+    def create_provider(
+        self, typ: TypeOrCallable[_T], context: ISerializationContext
+    ) -> IProvider[_T]:
+        ...

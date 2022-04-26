@@ -5,14 +5,41 @@ import pytest
 import sys
 from collections import abc as abc_collections
 
+try:
+    # Starting from python 3.9+
+    from typing import Annotated
+
+    _ANNOTATED_SUPPORTED = True
+except ImportError:
+    # Backport for older python versions
+    try:
+        from typing_extensions import Annotated  # type: ignore
+
+        _ANNOTATED_SUPPORTED = True
+    except ImportError:
+        _ANNOTATED_SUPPORTED = False
+
+
+try:
+    # Starting from python 3.8+
+    from typing import Literal
+
+    _LITERAL_SUPPORTED = True
+except ImportError:
+    try:
+        # Backport for older python versions
+        from typing_extensions import Literal  # type: ignore
+
+        _LITERAL_SUPPORTED = True
+    except ImportError:
+        _LITERAL_SUPPORTED = False
+
+
 from ctor.typing_utils import (
-    UNSUPPORTED,
-    Annotated,
-    Literal,
     strip_annotated,
     eval_type,
     ForwardRef,
-    get_origin
+    get_origin,
 )
 
 TEST_TYPES = [
@@ -30,23 +57,26 @@ TEST_TYPES = [
 ]
 
 
-@pytest.mark.parametrize('tp', TEST_TYPES)
+@pytest.mark.parametrize("tp", TEST_TYPES)
 def test_strip_annotated_returns_type_unchanged(tp):
     assert strip_annotated(tp) == (tp, ())
 
 
-if Annotated is not UNSUPPORTED:
-    @pytest.mark.parametrize('tp', TEST_TYPES)
+if _ANNOTATED_SUPPORTED:
+
+    @pytest.mark.parametrize("tp", TEST_TYPES)
     def test_strip_annotated_extracts_type_and_annotation(tp):
-        annotated = Annotated[tp, 'annotation1', 'annotation2']
-        assert strip_annotated(annotated) == (tp, ('annotation1', 'annotation2'))
+        annotated = Annotated[tp, "annotation1", "annotation2"]
+        assert strip_annotated(annotated) == (tp, ("annotation1", "annotation2"))
+
 else:
-    @pytest.mark.parametrize('tp', TEST_TYPES)
+
+    @pytest.mark.parametrize("tp", TEST_TYPES)
     def test_strip_annotated_extracts_type_and_annotation(tp):
         assert strip_annotated(tp) == (tp, ())
 
 
-@pytest.mark.parametrize('tp', TEST_TYPES)
+@pytest.mark.parametrize("tp", TEST_TYPES)
 def test_eval_type_resolves_non_forward_ref_types(tp):
     assert eval_type(tp, globals(), locals()) == tp
 
@@ -54,21 +84,18 @@ def test_eval_type_resolves_non_forward_ref_types(tp):
 def test_eval_type_resolves_forward_ref():
     class MyClass:
         pass
-    assert eval_type(
-        ForwardRef('MyClass'),
-        globals(),
-        locals()
-    ) == MyClass
+
+    assert eval_type(ForwardRef("MyClass"), globals(), locals()) == MyClass
 
 
 def test_nested_eval_type_resolves_forward_ref():
     class MyClass:
         pass
-    assert eval_type(
-        typing.Optional[ForwardRef('MyClass')],
-        globals(),
-        locals()
-    ) == typing.Optional[MyClass]
+
+    assert (
+        eval_type(typing.Optional[ForwardRef("MyClass")], globals(), locals())
+        == typing.Optional[MyClass]
+    )
 
 
 T = typing.TypeVar("T")
@@ -84,13 +111,11 @@ TYPE_ORIGINS = [
     (type, None),
     (typing.Any, None),
     (ForwardRef("A"), None),
-
     # (typing.Annotated[int, 42], int), # py3.9+
     (typing.Union[int, None], typing.Union),
     (typing.Generic[T], typing.Generic),
     (typing.Generic, typing.Generic),
     (CustomGeneric[int], CustomGeneric),
-
     # collections.abc
     (typing.Awaitable[int], abc_collections.Awaitable),
     (typing.Coroutine[int, int, int], abc_collections.Coroutine),
@@ -114,11 +139,9 @@ TYPE_ORIGINS = [
     (typing.ValuesView[str], abc_collections.ValuesView),
     (typing.Generator[int, int, int], abc_collections.Generator),
     (typing.AsyncGenerator[int, int], abc_collections.AsyncGenerator),
-
     # contextlib
     (typing.ContextManager[str], contextlib.AbstractContextManager),
     (typing.AsyncContextManager[str], contextlib.AbstractAsyncContextManager),
-
     # Builtin collections
     (typing.List[int], list),
     (typing.Set[int], set),
@@ -127,7 +150,6 @@ TYPE_ORIGINS = [
     (typing.Tuple[str, int], tuple),
     (typing.Tuple[str, ...], tuple),
     (typing.Type[int], type),
-
     # collections
     (typing.Deque[int], collections.deque),
     (typing.DefaultDict[int, int], collections.defaultdict),
@@ -136,22 +158,24 @@ TYPE_ORIGINS = [
     (typing.ChainMap[int, int], collections.ChainMap),
 ]
 
-if Annotated is not UNSUPPORTED:
-    TYPE_ORIGINS.extend([
-        (Annotated[int, "some"], int),
-    ])
+if _ANNOTATED_SUPPORTED:
+    TYPE_ORIGINS.extend(
+        [
+            (Annotated[int, "some"], int),
+        ]
+    )
 
 
-if Literal is not UNSUPPORTED:
-    TYPE_ORIGINS.extend([
-        (Literal[40], Literal)
-    ])
+if _LITERAL_SUPPORTED:
+    TYPE_ORIGINS.extend([(Literal[40], Literal)])
 
 
 if sys.version_info >= (3, 8):
-    TYPE_ORIGINS.extend([
-        (typing.Final[int], typing.Final),  # py3.8+
-    ])
+    TYPE_ORIGINS.extend(
+        [
+            (typing.Final[int], typing.Final),  # py3.8+
+        ]
+    )
 
 
 @pytest.mark.parametrize("tp, expected", TYPE_ORIGINS)

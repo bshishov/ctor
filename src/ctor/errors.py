@@ -1,21 +1,17 @@
 from typing import Optional, List, Dict, Any
 
-__all__ = [
-    "ErrorInfo",
-    "LoadError",
-    "DumpError"
-]
+__all__ = ["ErrorInfo", "LoadError", "DumpError"]
 
 
 class ErrorInfo:
     __slots__ = "code", "message", "target", "details"
 
     def __init__(
-            self,
-            message: str,
-            code: str,
-            target: Optional[str] = None,
-            details: Optional[List["ErrorInfo"]] = None
+        self,
+        message: str,
+        code: str,
+        target: Optional[str] = None,
+        details: Optional[List["ErrorInfo"]] = None,
     ):
         self.message = message
         self.code = code
@@ -27,7 +23,7 @@ class ErrorInfo:
             "code": self.code,
             "message": self.message,
             "target": self.target,
-            "details": [error.to_dict() for error in self.details]
+            "details": [error.to_dict() for error in self.details],
         }
 
     def to_readable_format(self, indent: int = 0) -> str:
@@ -39,24 +35,26 @@ class ErrorInfo:
             this_error = self.message
 
         if self.details:
-            details = "\n".join(f"{details_indent}{error.to_readable_format(indent + 1)}" for error in self.details)
+            details = "\n".join(
+                f"{details_indent}{error.to_readable_format(indent + 1)}"
+                for error in self.details
+            )
             return f"{this_error}\n{details}"
         else:
             return this_error
 
     @staticmethod
     def from_builtin_error(error: Exception) -> "ErrorInfo":
-        return ErrorInfo(
-            message=str(error),
-            code=type(error).__name__
-        )
+        return ErrorInfo(message=str(error), code=type(error).__name__)
 
     @staticmethod
-    def invalid_type(expected: type, actual: type, target: Optional[str] = None) -> "ErrorInfo":
+    def invalid_type(
+        expected: type, actual: type, target: Optional[str] = None
+    ) -> "ErrorInfo":
         return ErrorInfo(
             message=f"Invalid type, expected {expected}, got {actual}",
             code="invalid_type",
-            target=target
+            target=target,
         )
 
 
@@ -65,7 +63,7 @@ class BaseError(TypeError, ValueError):
 
     def __init__(self, info: ErrorInfo):
         self.info = info
-        super().__init__()
+        super().__init__(self.message)
 
     @property
     def code(self) -> str:
