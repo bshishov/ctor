@@ -327,3 +327,28 @@ def test_any_load(context):
     data = {"foo": [1, "hello", {}]}
     obj = ctor.load(AnyDummy, data, context=context)
     assert obj.foo == [1, "hello", {}]
+
+
+@dataclass
+class A:
+    a: str
+
+
+@dataclass
+class B:
+    b: int
+
+
+@dataclass
+class Foo:
+    item: typing.Union[typing.List[int], A, B, None]
+
+
+@pytest.mark.parametrize("obj, expected", [
+    (Foo(item=B(1)), {"item": {"b": 1}}),
+    (Foo(item=A("a")), {"item": {"a": "a"}}),
+    (Foo(item=None), {"item": None}),
+    (Foo(item=[1]), {"item": [1]}),
+])
+def test_union_dump(obj, expected):
+    assert ctor.dump(obj) == expected

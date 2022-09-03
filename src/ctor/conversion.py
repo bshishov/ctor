@@ -751,12 +751,22 @@ class UnionTypeConverter(IConverter[Any]):
 
     def dump(self, obj: Any, context: ISerializationContext) -> Any:
         errors = []
+
+        try:
+            # First, try dump object by getting a converter of its exact type
+            converter = context.get_converter(type(obj))
+            return converter.dump(obj, context)
+        except TypeError as e:
+            errors.append(ErrorInfo.from_builtin_error(e))
+        except DumpError as e:
+            errors.append(e.info)
+
+        # Second, try all Union converters
         for converter in self.converters:
             try:
                 return converter.dump(obj, context)
             except DumpError as e:
                 errors.append(e.info)
-                pass
 
         raise DumpError(
             ErrorInfo(
@@ -887,7 +897,11 @@ class PrimitiveTypeConverter(IConverter[Any]):
 
 class NoneConverter(IConverter[None]):
     def dump(self, obj: None, context: ISerializationContext) -> None:
-        return obj
+        if obj is not None:
+            raise DumpError(
+                ErrorInfo.invalid_type(expected=type(None), actual=type(obj))
+            )
+        return None
 
     def load(self, data: Any, key: Any, context: ISerializationContext) -> None:
         if data is not None:
