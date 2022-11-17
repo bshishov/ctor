@@ -60,6 +60,11 @@ class ClassWithOptionalAttr:
 
 
 @dataclass
+class ClassWithComplexOptionalAttr:
+    attr: typing.Optional[typing.Dict[str, typing.Any]]
+
+
+@dataclass
 class NestedClass:
     attr: ClassWithIntAttr
 
@@ -122,6 +127,16 @@ def test_discriminated_union_class_load(
         (ClassWithDefaultAttr, {}, ClassWithDefaultAttr(42)),
         (ClassWithOptionalAttr, {"attr": None}, ClassWithOptionalAttr(None)),
         (ClassWithOptionalAttr, {"attr": 1}, ClassWithOptionalAttr(1)),
+        (
+            ClassWithComplexOptionalAttr,
+            {"attr": None},
+            ClassWithComplexOptionalAttr(None),
+        ),
+        (
+            ClassWithComplexOptionalAttr,
+            {"attr": {"hello": 1}},
+            ClassWithComplexOptionalAttr({"hello": 1}),
+        ),
         (NestedClass, {"attr": {"attr": 1}}, NestedClass(ClassWithIntAttr(1))),
         (
             NestedClassForwardRef,
@@ -232,7 +247,7 @@ def test_load_obj_with_optional_attr_factory(context):
 
 
 def test_load_obj_with_obj_optional_attr_factory(
-        context,
+    context,
 ):
     obj = ctor.load(
         AttrsWithOptionalObjAttrFactory, {}, key=ctor.NOT_PROVIDED, context=context
@@ -344,11 +359,14 @@ class Foo:
     item: typing.Union[typing.List[int], A, B, None]
 
 
-@pytest.mark.parametrize("obj, expected", [
-    (Foo(item=B(1)), {"item": {"b": 1}}),
-    (Foo(item=A("a")), {"item": {"a": "a"}}),
-    (Foo(item=None), {"item": None}),
-    (Foo(item=[1]), {"item": [1]}),
-])
+@pytest.mark.parametrize(
+    "obj, expected",
+    [
+        (Foo(item=B(1)), {"item": {"b": 1}}),
+        (Foo(item=A("a")), {"item": {"a": "a"}}),
+        (Foo(item=None), {"item": None}),
+        (Foo(item=[1]), {"item": [1]}),
+    ],
+)
 def test_union_dump(obj, expected):
     assert ctor.dump(obj) == expected

@@ -91,18 +91,14 @@ def test_any_converter_load_as_is(data, context):
 
 
 @pytest.mark.parametrize("data", DIFFERENT_TYPED_DATA)
-def test_any_converter_load_raises_if_any_load_raise_enabled(
-    data, context
-):
+def test_any_converter_load_raises_if_any_load_raise_enabled(data, context):
     converter = AnyConverter(AnyLoadingPolicy.RAISE_ERROR, AnyDumpPolicy.DUMP_AS_IS)
     with pytest.raises(TypeError):
         converter.load(data, key=NOT_PROVIDED, context=context)
 
 
 @pytest.mark.parametrize("data", DIFFERENT_TYPED_DATA)
-def test_any_converter_dump_raises_if_any_dump_raise_enabled(
-    data, context
-):
+def test_any_converter_dump_raises_if_any_dump_raise_enabled(data, context):
     converter = AnyConverter(AnyLoadingPolicy.LOAD_AS_IS, AnyDumpPolicy.RAISE_ERROR)
     with pytest.raises(TypeError):
         converter.dump(data, context=context)
@@ -132,9 +128,7 @@ def test_primitive_string_converter_load_raises_if_invalid_type(s):
         (42.456, 42),
     ],
 )
-def test_primitive_number_converter_load_as_int(
-    x, expected: int, context
-):
+def test_primitive_number_converter_load_as_int(x, expected: int, context):
     int_converter = PrimitiveTypeConverter(int, float)
     assert int_converter.load(x, key=NOT_PROVIDED, context=context) == expected
 
@@ -150,9 +144,7 @@ def test_primitive_number_converter_load_as_int(
         (math.inf, math.inf),
     ],
 )
-def test_primitive_number_converter_load_as_float(
-    x, expected: float, context
-):
+def test_primitive_number_converter_load_as_float(x, expected: float, context):
     float_converter = PrimitiveTypeConverter(float, int)
     assert float_converter.load(x, key=NOT_PROVIDED, context=context) == expected
 
@@ -243,9 +235,7 @@ def test_set_converter_raises_if_item_converter_raises():
         ((int,), [1], (1,)),
     ],
 )
-def test_tuple_converter_load(
-    types, value, expected, context
-):
+def test_tuple_converter_load(types, value, expected, context):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
     assert converter.load(value, key=NOT_PROVIDED, context=context) == expected
 
@@ -259,9 +249,7 @@ def test_tuple_converter_load(
         ((int, int), (1,), [1]),
     ],
 )
-def test_tuple_converter_dump(
-    types, value, expected, context
-):
+def test_tuple_converter_dump(types, value, expected, context):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
     # Order-invariant collection equality check
     assert Counter(converter.dump(value, context=context)) == Counter(expected)
@@ -276,9 +264,7 @@ def test_tuple_converter_dump(
         ((int,), (1, "non int")),
     ],
 )
-def test_tuple_converter_raises_on_load(
-    types, value, context
-):
+def test_tuple_converter_raises_on_load(types, value, context):
     converter = TupleConverter(*map(PrimitiveTypeConverter, types))
     with pytest.raises(LoadError):
         converter.load(value, key=NOT_PROVIDED, context=context)
@@ -305,9 +291,7 @@ def test_union_converter_dump(value, context):
 @pytest.mark.parametrize(
     "value,expected", [(0, 0), (1, 1), (True, 1), (False, 0), ("string", "string")]
 )
-def test_union_converter_load_first_suitable(
-    value, expected, context
-):
+def test_union_converter_load_first_suitable(value, expected, context):
     converter = UnionTypeConverter(
         PrimitiveTypeConverter(int, bool),
         PrimitiveTypeConverter(bool),
@@ -317,13 +301,37 @@ def test_union_converter_load_first_suitable(
 
 
 def test_union_converter_raises_if_no_converter_matches(
-        context,
+    context,
 ):
     converter = UnionTypeConverter(
         PrimitiveTypeConverter(int), PrimitiveTypeConverter(bool)
     )
     with pytest.raises(LoadError):
         converter.load("non an or bool", key=NOT_PROVIDED, context=context)
+
+
+class _TestEnum(enum.Enum):
+    A = 1
+    B = 2
+
+
+@pytest.mark.parametrize(
+    "inner_converter",
+    [
+        NoneConverter(),
+        ExactConverter(),
+        EnumConverter(_TestEnum),
+        DatetimeTimestampConverter(),
+        PrimitiveTypeConverter(int),
+        ListConverter(PrimitiveTypeConverter(int)),
+        DictConverter(PrimitiveTypeConverter(int)),
+        SetConverter(PrimitiveTypeConverter(int)),
+        TupleConverter(PrimitiveTypeConverter(int)),
+    ],
+)
+def test_union_as_optional_converter(inner_converter, context):
+    converter = UnionTypeConverter(PrimitiveTypeConverter(int), NoneConverter())
+    assert converter.load(None, key=NOT_PROVIDED, context=context) is None
 
 
 @pytest.mark.parametrize("value", [True, "foo"])
@@ -338,13 +346,8 @@ def test_union_converter_not_raises_if_no_converter_matches_in_first_nested_unio
     assert converter.load(value, key=NOT_PROVIDED, context=context) == value
 
 
-def test_union_as_optional_converter(context):
-    converter = UnionTypeConverter(PrimitiveTypeConverter(int), NoneConverter())
-    assert converter.load(None, key=NOT_PROVIDED, context=context) is None
-
-
 def test_union_as_optional_converter_raises_if_no_match(
-        context,
+    context,
 ):
     converter = UnionTypeConverter(PrimitiveTypeConverter(int), NoneConverter())
     with pytest.raises(LoadError):
@@ -369,7 +372,7 @@ def test_datetime_iso_converter_dump(context):
 
 
 def test_datetime_iso_converter_load_raises_if_invalid_format(
-        context,
+    context,
 ):
     value = "2021.01.23"
     converter = DatetimeTimestampConverter()
@@ -443,9 +446,7 @@ def test_enum_dump(context, enum_type, value, expected):
 
 
 @pytest.mark.parametrize("enum_type", [_ExampleEnum, _ExampleIntEnum])
-def test_enum_converter_load_error_if_invalid_value(
-        context, enum_type
-):
+def test_enum_converter_load_error_if_invalid_value(context, enum_type):
     value = "this is non valid value"
     converter = EnumConverter(enum_type)
     with pytest.raises(LoadError):

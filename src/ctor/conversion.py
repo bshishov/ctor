@@ -1,3 +1,4 @@
+import collections
 import sys
 from datetime import datetime
 from enum import Enum, EnumMeta
@@ -575,7 +576,18 @@ class ListConverter(Generic[_T], IConverter[List[_T]]):
                 )
                 raise
 
-        return [_try_load(value, index) for index, value in enumerate(data)]
+        try:
+            iterable = iter(data)
+        except TypeError:
+            raise LoadError(
+                ErrorInfo(
+                    message="Failed to load list",
+                    target=str(key) if key is not NOT_PROVIDED else None,
+                    code="list_load_error",
+                )
+            )
+
+        return [_try_load(value, index) for index, value in enumerate(iterable)]
 
 
 class SetConverter(Generic[_T], IConverter[Set[_T]]):
@@ -588,6 +600,17 @@ class SetConverter(Generic[_T], IConverter[Set[_T]]):
         return [self.item_converter.dump(v, context) for v in obj]
 
     def load(self, data: Any, key: Any, context: ISerializationContext) -> Set[_T]:
+        try:
+            iterable = iter(data)
+        except TypeError:
+            raise LoadError(
+                ErrorInfo(
+                    message="Failed to load list",
+                    target=str(key) if key is not NOT_PROVIDED else None,
+                    code="list_load_error",
+                )
+            )
+
         return {
             self.item_converter.load(value, index, context)
             for index, value in enumerate(data)
@@ -624,6 +647,15 @@ class DictConverter(Generic[_TKey, _TVal], IConverter[Dict[_TKey, _TVal]]):
                     ],
                 )
                 raise
+
+        if not isinstance(data, (dict, collections.UserDict)):
+            raise LoadError(
+                ErrorInfo(
+                    message="Failed to load dict",
+                    code="dict_load_error",
+                    target=str(key) if key is not NOT_PROVIDED else None,
+                )
+            )
 
         return {k: _try_load(v, k) for k, v in data.items()}
 
