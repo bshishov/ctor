@@ -547,6 +547,27 @@ class ListConverter(Generic[_T], IConverter[List[_T]]):
     def dump(self, obj: List[_T], context: ISerializationContext) -> Any:
         return [self.item_converter.dump(v, context) for v in obj]
 
+    def _try_load(
+        self, value: Any, index: int, key: Any, context: ISerializationContext
+    ) -> Any:
+        try:
+            return self.item_converter.load(value, index, context)
+        except LoadError as e:
+            e.info = ErrorInfo(
+                message="Failed to load list",
+                target=str(key) if key is not NOT_PROVIDED else None,
+                code="list_load_error",
+                details=[
+                    ErrorInfo(
+                        message=f"Failed to load list element at index {index}",
+                        code="list_element_load_error",
+                        target=str(index),
+                        details=[e.info],
+                    )
+                ],
+            )
+            raise
+
     def load(self, data: Any, key: Any, context: ISerializationContext) -> List[_T]:
         if data is None:
             raise LoadError(
@@ -556,25 +577,6 @@ class ListConverter(Generic[_T], IConverter[List[_T]]):
                     target=str(key) if key is not NOT_PROVIDED else None,
                 )
             )
-
-        def _try_load(value: Any, index: int) -> Any:
-            try:
-                return self.item_converter.load(value, index, context)
-            except LoadError as e:
-                e.info = ErrorInfo(
-                    message="Failed to load list",
-                    target=str(key) if key is not NOT_PROVIDED else None,
-                    code="list_load_error",
-                    details=[
-                        ErrorInfo(
-                            message=f"Failed to load list element at index {index}",
-                            code="list_element_load_error",
-                            target=str(index),
-                            details=[e.info],
-                        )
-                    ],
-                )
-                raise
 
         try:
             iterable = iter(data)
@@ -587,7 +589,10 @@ class ListConverter(Generic[_T], IConverter[List[_T]]):
                 )
             )
 
-        return [_try_load(value, index) for index, value in enumerate(iterable)]
+        return [
+            self._try_load(value, index, key, context)
+            for index, value in enumerate(iterable)
+        ]
 
 
 class SetConverter(Generic[_T], IConverter[Set[_T]]):
