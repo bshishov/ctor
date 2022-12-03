@@ -601,13 +601,13 @@ class SetConverter(Generic[_T], IConverter[Set[_T]]):
 
     def load(self, data: Any, key: Any, context: ISerializationContext) -> Set[_T]:
         try:
-            iterable = iter(data)
+            _ = iter(data)
         except TypeError:
             raise LoadError(
                 ErrorInfo(
-                    message="Failed to load list",
+                    message="Failed to load set",
                     target=str(key) if key is not NOT_PROVIDED else None,
-                    code="list_load_error",
+                    code="set_load_error",
                 )
             )
 
@@ -618,36 +618,69 @@ class SetConverter(Generic[_T], IConverter[Set[_T]]):
 
 
 class DictConverter(Generic[_TKey, _TVal], IConverter[Dict[_TKey, _TVal]]):
-    __slots__ = "value_converter"
+    __slots__ = "_key_converter", "_value_converter"
 
-    def __init__(self, value_converter: IConverter[_TVal]):
-        self.value_converter = value_converter
+    def __init__(
+        self, key_converter: IConverter[_TKey], value_converter: IConverter[_TVal]
+    ):
+        self._key_converter = key_converter
+        self._value_converter = value_converter
 
     def dump(self, obj: Dict[_TKey, _TVal], context: ISerializationContext) -> Any:
-        return {k: self.value_converter.dump(v, context) for k, v in obj.items()}
+        return {
+            self._key_converter.dump(k, context): self._value_converter.dump(v, context)
+            for k, v in obj.items()
+        }
+
+    def _try_load_dict_value(
+        self,
+        dict_value: Any,
+        dict_key: Any,
+        object_key: Any,
+        context: ISerializationContext,
+    ) -> Any:
+        try:
+            return self._value_converter.load(dict_value, dict_key, context)
+        except LoadError as e:
+            e.info = ErrorInfo(
+                message="Failed to load dict",
+                code="dict_load_error",
+                target=str(object_key) if object_key is not NOT_PROVIDED else None,
+                details=[
+                    ErrorInfo(
+                        message="Failed to load dict value",
+                        code="dict_value_load_error",
+                        target=str(dict_key),
+                        details=[e.info],
+                    )
+                ],
+            )
+            raise
+
+    def _try_load_dict_key(
+        self, dict_key: Any, object_key: Any, context: ISerializationContext
+    ) -> Any:
+        try:
+            return self._key_converter.load(dict_key, dict_key, context)
+        except LoadError as e:
+            e.info = ErrorInfo(
+                message="Failed to load dict",
+                code="dict_load_error",
+                target=str(object_key) if object_key is not NOT_PROVIDED else None,
+                details=[
+                    ErrorInfo(
+                        message="Failed to load dict key",
+                        code="dict_value_load_error",
+                        target=str(dict_key),
+                        details=[e.info],
+                    )
+                ],
+            )
+            raise
 
     def load(
         self, data: Any, key: Any, context: ISerializationContext
     ) -> Dict[_TKey, _TVal]:
-        def _try_load(value: Any, k: Any) -> Any:
-            try:
-                return self.value_converter.load(value, k, context)
-            except LoadError as e:
-                e.info = ErrorInfo(
-                    message="Failed to load dict",
-                    code="dict_load_error",
-                    target=str(key) if key is not NOT_PROVIDED else None,
-                    details=[
-                        ErrorInfo(
-                            message="Failed to load dict value",
-                            code="dict_value_load_error",
-                            target=str(k),
-                            details=[e.info],
-                        )
-                    ],
-                )
-                raise
-
         if not isinstance(data, (dict, collections.UserDict)):
             raise LoadError(
                 ErrorInfo(
@@ -657,7 +690,12 @@ class DictConverter(Generic[_TKey, _TVal], IConverter[Dict[_TKey, _TVal]]):
                 )
             )
 
-        return {k: _try_load(v, k) for k, v in data.items()}
+        loaded_result = {}
+        for k, v in data.items():
+            loaded_key = self._try_load_dict_key(k, key, context)
+            loaded_value = self._try_load_dict_value(v, k, key, context)
+            loaded_result[loaded_key] = loaded_value
+        return loaded_result
 
 
 class TupleConverter(IConverter[Tuple[Any, ...]]):
@@ -769,9 +807,9 @@ class DictConverterFactory(IConverterFactory[Dict[_TKey, _TVal]]):
 
         args = get_args(tp)
         if args:
-            value_type = args[1]  # e.g. typing.Dict[str, T]
-            value_converter = context.get_converter(value_type)
-            return DictConverter(value_converter)
+            key_converter = context.get_converter(args[0])
+            value_converter = context.get_converter(args[1])
+            return DictConverter(key_converter, value_converter)
         raise TypeError(f"Non-generic type expected, got {tp}")
 
 

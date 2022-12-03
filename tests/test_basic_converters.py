@@ -169,24 +169,35 @@ def test_list_converter_raises_if_item_converter_raises():
     )
 
 
-@pytest.mark.parametrize("value", [{}, {"foo": "bar"}])
+@pytest.mark.parametrize("value", [{}, {"foo": "bar"}, {1: 2}])
 def test_dict_converter_load(value):
     converter_load_produces_same_result(
-        converter=DictConverter(ExactConverter()), value=value
+        converter=DictConverter(ExactConverter(), ExactConverter()), value=value
     )
 
 
 @pytest.mark.parametrize("value", [{}, {"foo": "bar"}])
 def test_dict_converter_dump(value):
     converter_dump_produces_same_result(
-        converter=DictConverter(ExactConverter()), value=value
+        converter=DictConverter(ExactConverter(), ExactConverter()), value=value
     )
 
 
-def test_dict_converter_raises_if_item_converter_raises():
+def test_dict_converter_raises_if_value_converter_raises():
     converter_load_raises_load_error(
-        converter=DictConverter(PrimitiveTypeConverter(int)),
-        value={"valid_key": 1, "invalid_key": "not an int"},
+        converter=DictConverter(
+            PrimitiveTypeConverter(str), PrimitiveTypeConverter(int)
+        ),
+        value={"foo": 1, "bar": "invalid value"},
+    )
+
+
+def test_dict_converter_raises_if_key_converter_raises():
+    converter_load_raises_load_error(
+        converter=DictConverter(
+            PrimitiveTypeConverter(int), PrimitiveTypeConverter(int)
+        ),
+        value={1: 1, "invalid_key": 2},
     )
 
 
@@ -324,7 +335,7 @@ class _TestEnum(enum.Enum):
         DatetimeTimestampConverter(),
         PrimitiveTypeConverter(int),
         ListConverter(PrimitiveTypeConverter(int)),
-        DictConverter(PrimitiveTypeConverter(int)),
+        DictConverter(PrimitiveTypeConverter(str), PrimitiveTypeConverter(int)),
         SetConverter(PrimitiveTypeConverter(int)),
         TupleConverter(PrimitiveTypeConverter(int)),
     ],

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="ctor",
-    version="0.3.2",
+    version="0.3.3",
     description="Object tree serialization library for python",
     url="https://github.com/bshishov/ctor",
     author="Boris Shishov",
