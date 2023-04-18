@@ -19,6 +19,7 @@ from typing import (
     TypeVar,
     Type,
     overload,
+    Iterable,
 )
 
 from ctor.typing_utils import (
@@ -411,7 +412,7 @@ def build_attr_definition(
 class DiscriminatedConverter(Generic[_T], IConverter[_T]):
     def __init__(
         self,
-        converters: List[Tuple[str, TypeOrCallable[_T], IConverter[_T]]],
+        converters: Iterable[Tuple[str, TypeOrCallable[_T], IConverter[_T]]],
         discriminator_key: str = "type",
     ):
         self.discriminator_key = discriminator_key
@@ -514,7 +515,7 @@ class DiscriminatedConverterFactory(IConverterFactory[_T]):
 
     def __init__(
         self,
-        discriminator_type_map: Dict[str, TypeOrCallable[_T]],
+        discriminator_type_map: Mapping[str, TypeOrCallable[_T]],
         converter_factory: IConverterFactory[_T],
         discriminator_key: str = "type",
     ):
