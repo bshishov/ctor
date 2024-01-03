@@ -450,6 +450,34 @@ class DiscriminatedConverter(Generic[_T], IConverter[_T]):
         return converter.load(data, key, context)
 
 
+_COMMON_STRING_TYPES = {
+    "None": type(None),
+    "int": int,
+    "float": float,
+    "object": object,
+    "bool": bool,
+    "str": str,
+    "list": list,
+    "dict": dict,
+    "set": set,
+    "tuple": tuple,
+    "bytes": bytes,
+    "complex": complex,
+    "bytearray": bytearray,
+    "memoryview": memoryview,
+    "frozenset": frozenset,
+}
+
+
+def _parse_string_type(t: str) -> Any:
+    if "|" in t:
+        return ForwardRef("Union[" + t.replace("|", ",") + "]")
+    common_type = _COMMON_STRING_TYPES.get(t)
+    if common_type is not None:
+        return common_type
+    return ForwardRef(t)
+
+
 class ObjectConverterFactory(IConverterFactory[Any]):
     __slots__ = "missing_annotations_policy", "dump_none_values"
 
@@ -497,7 +525,7 @@ class ObjectConverterFactory(IConverterFactory[Any]):
                         f"{self.missing_annotations_policy}"
                     )
             if isinstance(param_type, str):
-                param_type = ForwardRef(param_type)
+                param_type = _parse_string_type(param_type)
 
             param_type = eval_type(
                 param_type, globals(), sys.modules[tp.__module__].__dict__
